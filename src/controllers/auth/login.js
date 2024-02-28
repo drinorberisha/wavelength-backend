@@ -1,9 +1,9 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const db = require('../../utils/db');
+const User = require('../../models/User'); 
 
 const loginUser = async (req, res) => {
-    const { email, password } = req.body; // Change from username to email
+    const { email, password } = req.body;
 
     // Basic validation
     if (!email || !password) {
@@ -11,23 +11,24 @@ const loginUser = async (req, res) => {
     }
 
     try {
-        // Check if user exists by email
-        const { rows } = await db.query('SELECT * FROM users WHERE email = $1', [email]);
-        if (rows.length === 0) {
+        // Check if user exists by email using Mongoose
+        const user = await User.findOne({ email: email });
+        if (!user) {
             return res.status(401).json({ message: 'Invalid email or password.' });
         }
 
-        const user = rows[0];
-
-        // Compare password
+        // Compare password with the hashed password stored in the database
         const match = await bcrypt.compare(password, user.password_hash);
         if (!match) {
             return res.status(401).json({ message: 'Invalid email or password.' });
         }
 
-        // User authenticated, generate token
-        // You might choose to include email in the JWT payload if it's more relevant for your application
-        const token = jwt.sign({ userId: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        // User authenticated, generate JWT token
+        const token = jwt.sign(
+            { userId: user.id, email: user.email }, 
+            process.env.JWT_SECRET, 
+            { expiresIn: '1h' }
+        );
 
         res.json({ message: 'Login successful', token });
     } catch (error) {
